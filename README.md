@@ -1,5 +1,3 @@
-Introduction
-
 This is a project that I did for my exam. It's a chain of tools for assembling, linking and emulating code for an simplified computer system.
 
 zadatak1 -> Assembler
