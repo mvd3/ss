@@ -1,0 +1,13 @@
+.symbol_table
+0|myCode|0|0|0
+2|myStart|0|0|1
+3|wait|0|10|0
+4|myData|1|0|0
+5|myCounter|1|0|1
+.section
+a00f000001b00f04ff10a00f040000a01f000005740152ff00000000
+5|13|2|1
+3|25|2|1
+.section
+0000
+.end

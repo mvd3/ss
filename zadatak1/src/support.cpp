@@ -52,6 +52,7 @@ int currentSectionSize;
 std::vector<SymbolTableEntry*> symbolTable;
 std::vector<std::vector<RelocationTableEntry*>> relocationTables;
 std::vector<EquEntry*> equTable;
+std::vector<std::string> inFileContent;
 
 //Regex for arguments
 std::regex inputFile("^[a-zA-z0-9\\-\\_\\/]+(\\.)s$");
@@ -137,6 +138,7 @@ void initializeLocalVariables() {
   symbolTable.clear();
   relocationTables.clear();
   equTable.clear();
+  inFileContent.clear();
 }
 
 int fetchCurrentLine() {
@@ -180,7 +182,9 @@ int sectionFirstPass(std::string sectionName) {
 
 void printOutputFiles(std::string name) {
   std::ofstream testFile;
+
   testFile.open(name + ".txt");
+  int equDelete = 0;
 
   //Symbol table
   testFile << "Symbol table\n";
@@ -204,7 +208,7 @@ void printOutputFiles(std::string name) {
   testFile << "ID\tname\tvalue\n";
   for (auto e : equTable) {
     testFile << e->id << " | " << e->name << " | " << e->value << "\n";
-    symbolTable.erase(symbolTable.begin()+e->id);
+    symbolTable.erase(symbolTable.begin()+e->id-equDelete++);
   }
 
   testFile.close();
@@ -223,7 +227,7 @@ void printOutputFiles(std::string name) {
       testFile << r->id << "|" << r->offset << "|" << r->size << "|" << r->type << "\n";
   }
 
-  testFile << "\end";
+  testFile << ".end\n";
 
   testFile.close();
 
@@ -379,7 +383,7 @@ int createJumpAddress(int jumpType, std::string* returnString) {
 
   } else if (jumpType==2) { // PC relative symbol
 
-    *returnString += "703";
+    *returnString += "705";
     id = findSymbol(currentLineFetched[1].substr(1));
 
     if (id<0) {
@@ -640,7 +644,10 @@ int assemble(std::string inputFile, std::string outputFile) {
   }
 
   while(getline(inFile, currentLine)) { //First pass
+
     fetchCurrentLine();
+
+    inFileContent.push_back(currentLine); //Add current line to vector for second pass
 
     if (currentLineFetched.size()==0) { //Skip to next line
       currentLineNumber++;
@@ -694,7 +701,7 @@ int assemble(std::string inputFile, std::string outputFile) {
             std::cout << "Error!\nInvalid list definition on line " << currentLineNumber << ", symbol " << currentLineFetched[i] << "." << std::endl;
             return -1;
           } else
-            if (addSymbolFirstPass(currentLineFetched[i], -2, 0, true)<0)
+            if (addSymbolFirstPass(currentLineFetched[i], -2, 0, false)<0)
               return -1;
         }
 
@@ -810,7 +817,7 @@ int assemble(std::string inputFile, std::string outputFile) {
         }
         currentSectionSize += 3;
 
-      } else if (currentLineFetched[0]!=commands[24] && currentLineFetched[0]!=commands[25]) { // XCHG, ADD, SUB, MUL, DIV, CMP, NOT, AND, OR, XOR, TEST, SHL, SHR
+      } else if (currentLineFetched[0]!=commands[17] && currentLineFetched[0]!=commands[24] && currentLineFetched[0]!=commands[25]) { // XCHG, ADD, SUB, MUL, DIV, CMP, AND, OR, XOR, TEST, SHL, SHR
 
         if (currentLineFetched.size()!=3) {
           std::cout << "Error!\nCommand on line " << currentLineNumber << " not properly written." << std::endl;
@@ -824,6 +831,20 @@ int assemble(std::string inputFile, std::string outputFile) {
 
         if (!regex_match(currentLineFetched[2], availableRegisterRecognition)) {
           std::cout << "Error!\nInvalid register format " << currentLineFetched[2] << " on line " << currentLineNumber << "." << std::endl;
+          return -1;
+        }
+
+        currentSectionSize += 2;
+
+      } else if (currentLineFetched[0]==commands[17]) { //NOT
+
+        if (currentLineFetched.size()!=2) {
+          std::cout << "Error!\nCommand on line " << currentLineNumber << " not properly written." << std::endl;
+          return -1;
+        }
+
+        if (!regex_match(currentLineFetched[1], availableRegisterRecognition)) {
+          std::cout << "Error!\nInvalid register format " << currentLineFetched[1] << " on line " << currentLineNumber << "." << std::endl;
           return -1;
         }
 
@@ -871,13 +892,17 @@ int assemble(std::string inputFile, std::string outputFile) {
   }
 
   //Return to file beginning
-  inFile.clear();
-  inFile.seekg(0);
+  // inFile.clear();
+  // inFile.seekg(0);
+  inFile.close();
   currentLineNumber = 1;
   currentSection = -1; //On first encounter with .section it will be incremented to first position (0, zero)
   endReached = false;
+  currentLineFetched.clear();
 
-  while (getline(inFile, currentLine)) { //Second pass
+  for (std::string curLin : inFileContent) { //Second pass
+
+    currentLine = curLin; //Read current line
 
     fetchCurrentLine();
 
@@ -889,6 +914,7 @@ int assemble(std::string inputFile, std::string outputFile) {
     if (regex_match(currentLineFetched[0], directiveRecognition)) { //Directive
 
       std::string curDir = currentLineFetched[0].substr(1);
+
       if (curDir==directives[0]) { //Global
 
         for (int i=1;i<currentLineFetched.size();i++)
@@ -950,7 +976,9 @@ int assemble(std::string inputFile, std::string outputFile) {
         // printOutputFiles();
         // return 0;
 
-        endReached = true;
+        // break;
+
+        // endReached = true;
 
       }
 
@@ -1048,13 +1076,19 @@ int assemble(std::string inputFile, std::string outputFile) {
 
         currentSectionSize += 2;
 
-      } else if (currentLineFetched[0]==commands[17] || currentLineFetched[0]==commands[18] || currentLineFetched[0]==commands[19] || currentLineFetched[0]==commands[20] || currentLineFetched[0]==commands[21]) { //NOT, AND, OR, XOR, TEST
+      } else if (currentLineFetched[0]==commands[17]) { //NOT
 
         std::string mode = "0"; //not
 
-        if (currentLineFetched[0]==commands[18]) //and
-          mode = "1";
-        else if (currentLineFetched[0]==commands[19]) //or
+        *(sectionContent[currentSection]) << "8" << mode << std::to_string(getRegisterNumber(currentLineFetched[1])) << "f";
+
+        currentSectionSize += 2;
+
+      } else if (currentLineFetched[0]==commands[18] || currentLineFetched[0]==commands[19] || currentLineFetched[0]==commands[20] || currentLineFetched[0]==commands[21]) { //AND, OR, XOR, TEST
+
+        std::string mode = "1"; //and
+
+        if (currentLineFetched[0]==commands[19]) //or
           mode = "2";
         else if (currentLineFetched[0]==commands[20]) //xor
           mode = "3";
@@ -1114,7 +1148,7 @@ int assemble(std::string inputFile, std::string outputFile) {
 
   }
 
-  inFile.close();
+  // inFile.close();
 
   printOutputFiles(outputFile);
 
