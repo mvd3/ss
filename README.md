@@ -1,4 +1,4 @@
-This is a project that I did for my exam. It's a chain of tools for assembling, linking and emulating code for an simplified computer system.
+This is a project that I did for my exam. It's a chain of tools for assembling, linking and emulating code for a simplified computer system.
 
 zadatak1 -> Assembler
 
